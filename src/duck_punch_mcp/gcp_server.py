@@ -24,6 +24,8 @@ gcp_packages_root = os.path.join(project_root, "external/google-cloud-python/pac
 TARGET_PACKAGES = [
     "google-cloud-access-approval",
     "google-cloud-asset",
+    "google-cloud-advisorynotifications",
+    "google-cloud-alloydb",
 ]
 
 # Add packages to sys.path
@@ -184,6 +186,8 @@ def discover_tools():
         # (package_dir_name, module_to_import, expected_client_name)
         ("google-cloud-access-approval", "google.cloud.accessapproval", "AccessApprovalClient"),
         ("google-cloud-asset", "google.cloud.asset_v1", "AssetServiceClient"),
+        ("google-cloud-advisorynotifications", "google.cloud.advisorynotifications_v1", "AdvisoryNotificationsServiceClient"),
+        ("google-cloud-alloydb", "google.cloud.alloydb_v1", "AlloyDBAdminClient"),
     ]
 
     for pkg_name, module_name, client_name in candidates:
