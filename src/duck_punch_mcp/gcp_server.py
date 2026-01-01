@@ -26,6 +26,16 @@ TARGET_PACKAGES = [
     "google-cloud-asset",
     "google-cloud-advisorynotifications",
     "google-cloud-alloydb",
+    "google-cloud-api-gateway",
+    "google-cloud-api-keys",
+    "google-cloud-apigee-connect",
+    "google-cloud-apigee-registry",
+    "google-cloud-apihub",
+    "google-cloud-appengine-admin",
+    "google-cloud-apphub",
+    "google-cloud-artifact-registry",
+    "google-cloud-assured-workloads",
+    "google-cloud-automl",
 ]
 
 # Add packages to sys.path
@@ -188,6 +198,18 @@ def discover_tools():
         ("google-cloud-asset", "google.cloud.asset_v1", "AssetServiceClient"),
         ("google-cloud-advisorynotifications", "google.cloud.advisorynotifications_v1", "AdvisoryNotificationsServiceClient"),
         ("google-cloud-alloydb", "google.cloud.alloydb_v1", "AlloyDBAdminClient"),
+
+        # New 10 packages
+        ("google-cloud-api-gateway", "google.cloud.apigateway_v1", "ApiGatewayServiceClient"),
+        ("google-cloud-api-keys", "google.cloud.api_keys_v2", "ApiKeysClient"),
+        ("google-cloud-apigee-connect", "google.cloud.apigeeconnect_v1", "ConnectionServiceClient"),
+        ("google-cloud-apigee-registry", "google.cloud.apigee_registry_v1", "RegistryClient"),
+        ("google-cloud-apihub", "google.cloud.apihub_v1", "ApiHubClient"),
+        ("google-cloud-appengine-admin", "google.cloud.appengine_admin_v1", "ApplicationsClient"),
+        ("google-cloud-apphub", "google.cloud.apphub_v1", "AppHubClient"),
+        ("google-cloud-artifact-registry", "google.cloud.artifactregistry_v1", "ArtifactRegistryClient"),
+        ("google-cloud-assured-workloads", "google.cloud.assuredworkloads_v1", "AssuredWorkloadsServiceClient"),
+        ("google-cloud-automl", "google.cloud.automl_v1", "AutoMlClient"),
     ]
 
     for pkg_name, module_name, client_name in candidates:
