@@ -1,0 +1,29 @@
+[project]
+name = "duck-punch-mcp"
+version = "0.1.0"
+description = "MCP servers for Google SecOps and SOAR SDKs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli,fastmcp]",
+    "google-auth",
+    "requests",
+    "typing-extensions",
+    "arrow",
+    "chardet",
+    "cryptography",
+    "pyopenssl",
+    "python-dateutil",
+    "pytz",
+    "requests-toolbelt",
+    "six",
+    "protobuf",
+    "python-dotenv",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/duck_punch_mcp"]
