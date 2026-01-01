@@ -22,10 +22,13 @@ gcp_packages_root = os.path.join(project_root, "external/google-cloud-python/pac
 
 # Whitelist of packages to expose
 TARGET_PACKAGES = [
+    # Original 4
     "google-cloud-access-approval",
     "google-cloud-asset",
     "google-cloud-advisorynotifications",
     "google-cloud-alloydb",
+
+    # Batch 1 (10)
     "google-cloud-api-gateway",
     "google-cloud-api-keys",
     "google-cloud-apigee-connect",
@@ -36,14 +39,42 @@ TARGET_PACKAGES = [
     "google-cloud-artifact-registry",
     "google-cloud-assured-workloads",
     "google-cloud-automl",
+
+    # Batch 2 (25)
+    "google-cloud-backupdr",
+    "google-cloud-bare-metal-solution",
+    "google-cloud-batch",
+    "google-cloud-beyondcorp-appconnections",
+    "google-cloud-beyondcorp-appconnectors",
+    "google-cloud-beyondcorp-appgateways",
+    "google-cloud-beyondcorp-clientgateways",
+    "google-cloud-biglake",
+    "google-cloud-bigquery-analyticshub",
+    "google-cloud-bigquery-connection",
+    "google-cloud-bigquery-datapolicies",
+    "google-cloud-bigquery-datatransfer",
+    "google-cloud-bigquery-migration",
+    "google-cloud-bigquery-reservation",
+    "google-cloud-billing",
+    "google-cloud-billing-budgets",
+    "google-cloud-binary-authorization",
+    "google-cloud-build",
+    "google-cloud-certificate-manager",
+    "google-cloud-channel",
+    "google-cloud-cloudcontrolspartner",
+    "google-cloud-commerce-consumer-procurement",
+    "google-cloud-compute",
+    "google-cloud-confidentialcomputing",
+    "google-cloud-config",
 ]
 
 # Add packages to sys.path
-# We need to add the individual package directories because they are namespace packages
-for pkg_name in TARGET_PACKAGES:
-    pkg_path = os.path.join(gcp_packages_root, pkg_name)
-    if os.path.exists(pkg_path) and pkg_path not in sys.path:
-        sys.path.insert(0, pkg_path)
+# We rely on installed packages (pip install) to handle namespaces correctly.
+# Injecting source paths can break namespace packages if not done via pip install -e.
+# for pkg_name in TARGET_PACKAGES:
+#     pkg_path = os.path.join(gcp_packages_root, pkg_name)
+#     if os.path.exists(pkg_path) and pkg_path not in sys.path:
+#         sys.path.insert(0, pkg_path)
 
 mcp = FastMCP("GoogleCloud")
 
@@ -186,6 +217,13 @@ def create_wrapper(client_factory: Callable, method_name: str, method: Callable,
 
     return wrapper
 
+def pkg_to_prefix(pkg_name):
+    # Remove google-cloud- prefix
+    name = pkg_name.replace("google-cloud-", "")
+    # Title case parts
+    parts = name.split("-")
+    return "".join(p.title() for p in parts)
+
 def discover_tools():
     """Discover tools from whitelisted packages."""
 
@@ -193,13 +231,13 @@ def discover_tools():
     # We could try to walk the directories, but let's be explicit for the 'first 2'
 
     candidates = [
-        # (package_dir_name, module_to_import, expected_client_name)
+        # Original 4
         ("google-cloud-access-approval", "google.cloud.accessapproval", "AccessApprovalClient"),
         ("google-cloud-asset", "google.cloud.asset_v1", "AssetServiceClient"),
         ("google-cloud-advisorynotifications", "google.cloud.advisorynotifications_v1", "AdvisoryNotificationsServiceClient"),
         ("google-cloud-alloydb", "google.cloud.alloydb_v1", "AlloyDBAdminClient"),
 
-        # New 10 packages
+        # Batch 1 (10)
         ("google-cloud-api-gateway", "google.cloud.apigateway_v1", "ApiGatewayServiceClient"),
         ("google-cloud-api-keys", "google.cloud.api_keys_v2", "ApiKeysClient"),
         ("google-cloud-apigee-connect", "google.cloud.apigeeconnect_v1", "ConnectionServiceClient"),
@@ -210,6 +248,33 @@ def discover_tools():
         ("google-cloud-artifact-registry", "google.cloud.artifactregistry_v1", "ArtifactRegistryClient"),
         ("google-cloud-assured-workloads", "google.cloud.assuredworkloads_v1", "AssuredWorkloadsServiceClient"),
         ("google-cloud-automl", "google.cloud.automl_v1", "AutoMlClient"),
+
+        # Batch 2 (25)
+        ("google-cloud-backupdr", "google.cloud.backupdr_v1", "BackupDRClient"),
+        ("google-cloud-bare-metal-solution", "google.cloud.bare_metal_solution_v2", "BareMetalSolutionClient"),
+        ("google-cloud-batch", "google.cloud.batch_v1", "BatchServiceClient"),
+        ("google-cloud-beyondcorp-appconnections", "google.cloud.beyondcorp_appconnections_v1", "AppConnectionsServiceClient"),
+        ("google-cloud-beyondcorp-appconnectors", "google.cloud.beyondcorp_appconnectors_v1", "AppConnectorsServiceClient"),
+        ("google-cloud-beyondcorp-appgateways", "google.cloud.beyondcorp_appgateways_v1", "AppGatewaysServiceClient"),
+        ("google-cloud-beyondcorp-clientgateways", "google.cloud.beyondcorp_clientgateways_v1", "ClientGatewaysServiceClient"),
+        ("google-cloud-biglake", "google.cloud.biglake_v1", "IcebergCatalogServiceClient"),
+        ("google-cloud-bigquery-analyticshub", "google.cloud.bigquery_analyticshub_v1", "AnalyticsHubServiceClient"),
+        ("google-cloud-bigquery-connection", "google.cloud.bigquery_connection_v1", "ConnectionServiceClient"),
+        ("google-cloud-bigquery-datapolicies", "google.cloud.bigquery_datapolicies_v1", "DataPolicyServiceClient"),
+        ("google-cloud-bigquery-datatransfer", "google.cloud.bigquery_datatransfer_v1", "DataTransferServiceClient"),
+        ("google-cloud-bigquery-migration", "google.cloud.bigquery_migration_v2", "MigrationServiceClient"),
+        ("google-cloud-bigquery-reservation", "google.cloud.bigquery_reservation_v1", "ReservationServiceClient"),
+        ("google-cloud-billing", "google.cloud.billing_v1", "CloudBillingClient"),
+        ("google-cloud-billing-budgets", "google.cloud.billing.budgets_v1", "BudgetServiceClient"),
+        ("google-cloud-binary-authorization", "google.cloud.binaryauthorization_v1", "BinauthzManagementServiceV1Client"),
+        ("google-cloud-build", "google.cloud.devtools.cloudbuild_v1", "CloudBuildClient"),
+        ("google-cloud-certificate-manager", "google.cloud.certificate_manager_v1", "CertificateManagerClient"),
+        ("google-cloud-channel", "google.cloud.channel_v1", "CloudChannelServiceClient"),
+        ("google-cloud-cloudcontrolspartner", "google.cloud.cloudcontrolspartner_v1", "CloudControlsPartnerCoreClient"),
+        ("google-cloud-commerce-consumer-procurement", "google.cloud.commerce_consumer_procurement_v1", "ConsumerProcurementServiceClient"),
+        ("google-cloud-compute", "google.cloud.compute_v1", "InstancesClient"),
+        ("google-cloud-confidentialcomputing", "google.cloud.confidentialcomputing_v1", "ConfidentialComputingClient"),
+        ("google-cloud-config", "google.cloud.config_v1", "ConfigClient"),
     ]
 
     for pkg_name, module_name, client_name in candidates:
@@ -220,16 +285,22 @@ def discover_tools():
             # We accept exact match or something ending with the name
             client_cls = getattr(mod, client_name, None)
             if not client_cls:
+                # Try fallback for v1alpha/beta naming inconsistencies if needed
+                # But our list is pretty specific.
                 sys.stderr.write(f"Could not find {client_name} in {module_name}\n")
                 continue
 
-            print(f"Registering tools for {client_name}...")
+            print(f"Registering tools for {client_name} ({pkg_name})...")
 
             # Factory to get instance
             def make_factory(m_name, c_name):
                 return lambda: get_client(m_name, c_name)
 
             client_factory = make_factory(module_name, client_name)
+
+            # Use pkg name to generate prefix
+            # e.g. google-cloud-bigquery-connection -> BigQueryConnection
+            pkg_prefix = pkg_to_prefix(pkg_name)
 
             # Iterate over methods
             for name, method in inspect.getmembers(client_cls):
@@ -240,16 +311,19 @@ def discover_tools():
                 if name in ["from_service_account_file", "from_service_account_info", "from_service_account_json", "get_mtls_endpoint_and_cert_source", "parse_common_billing_account_path", "parse_common_folder_path", "parse_common_location_path", "parse_common_organization_path", "parse_common_project_path", "common_billing_account_path", "common_folder_path", "common_location_path", "common_organization_path", "common_project_path"]:
                     continue
 
-                # Tool name: <Service>_<Method>
-                # e.g. AccessApproval_list_approval_requests
-                service_prefix = client_name.replace("Client", "").replace("Service", "")
-                tool_name = f"{service_prefix}_{name}"
+                # Tool name: <PkgPrefix>_<Method>
+                # e.g. BigQueryConnection_list_connections
+                tool_name = f"{pkg_prefix}_{name}"
 
                 try:
                     wrapper = create_wrapper(client_factory, name, method, tool_name)
                     mcp.add_tool(wrapper)
                 except Exception as e:
-                    sys.stderr.write(f"Failed to wrap {name}: {e}\n")
+                    # Ignore duplicates if they happen (though prefixes should handle it)
+                    if "already exists" in str(e):
+                        sys.stderr.write(f"Tool already exists: {tool_name}\n")
+                    else:
+                        sys.stderr.write(f"Failed to wrap {name}: {e}\n")
 
         except ImportError as e:
             sys.stderr.write(f"Failed to import {module_name}: {e}\n")
