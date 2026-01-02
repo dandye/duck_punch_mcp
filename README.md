@@ -7,6 +7,7 @@ Currently supports:
 - **Google SecOps SDK** (Chronicle)
 - **SOAR SDK** (Siemplify)
 - **Google Cloud SDK** (Support for 200+ services including Compute, BigQuery, IAM, etc.)
+- **Fitbit API** (Access to user data like sleep, activities, heart rate, etc.)
 
 ## Features
 
@@ -67,6 +68,13 @@ Currently supports:
     # Google Cloud SDK
     # Ensure Application Default Credentials (ADC) are set up:
     # gcloud auth application-default login
+
+    # Fitbit API
+    FITBIT_CLIENT_ID=your-client-id
+    FITBIT_CLIENT_SECRET=your-client-secret
+    FITBIT_ACCESS_TOKEN=your-access-token
+    FITBIT_REFRESH_TOKEN=your-refresh-token
+    FITBIT_EXPIRES_AT=your-expires-at-timestamp
     ```
 
 ## Usage
@@ -87,6 +95,12 @@ uv run python -m duck_punch_mcp.soar_server
 
 ```bash
 uv run python -m duck_punch_mcp.gcp_server
+```
+
+### Running the Fitbit Server
+
+```bash
+uv run python -m duck_punch_mcp.fitbit_server
 ```
 
 ### Inspecting Tools (Development)
@@ -123,6 +137,17 @@ To use these servers with the Gemini CLI, add the following to your MCP configur
     "gcp": {
       "command": "uv",
       "args": ["run", "python", "-m", "duck_punch_mcp.gcp_server"]
+    },
+    "fitbit": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "duck_punch_mcp.fitbit_server"],
+      "env": {
+        "FITBIT_CLIENT_ID": "<YOUR_CLIENT_ID>",
+        "FITBIT_CLIENT_SECRET": "<YOUR_CLIENT_SECRET>",
+        "FITBIT_ACCESS_TOKEN": "<YOUR_ACCESS_TOKEN>",
+        "FITBIT_REFRESH_TOKEN": "<YOUR_REFRESH_TOKEN>",
+        "FITBIT_EXPIRES_AT": "<YOUR_EXPIRES_AT>"
+      }
     }
   }
 }
