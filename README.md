@@ -7,6 +7,7 @@ Currently supports:
 - **Google SecOps SDK** (Chronicle)
 - **SOAR SDK** (Siemplify)
 - **Google Cloud SDK** (Support for 200+ services including Compute, BigQuery, IAM, etc.)
+- **Fitbit SDK** (Support for sleep, activities, body, heart, etc.)
 
 ## Features
 
@@ -89,6 +90,12 @@ uv run python -m duck_punch_mcp.soar_server
 uv run python -m duck_punch_mcp.gcp_server
 ```
 
+### Running the Fitbit Server
+
+```bash
+uv run python -m duck_punch_mcp.fitbit_server
+```
+
 ### Inspecting Tools (Development)
 
 You can use the MCP Inspector to test tools interactively:
@@ -123,6 +130,17 @@ To use these servers with the Gemini CLI, add the following to your MCP configur
     "gcp": {
       "command": "uv",
       "args": ["run", "python", "-m", "duck_punch_mcp.gcp_server"]
+    },
+    "fitbit": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "duck_punch_mcp.fitbit_server"],
+      "env": {
+        "FITBIT_CLIENT_ID": "<YOUR_CLIENT_ID>",
+        "FITBIT_CLIENT_SECRET": "<YOUR_CLIENT_SECRET>",
+        "FITBIT_ACCESS_TOKEN": "<YOUR_ACCESS_TOKEN>",
+        "FITBIT_REFRESH_TOKEN": "<YOUR_REFRESH_TOKEN>",
+        "FITBIT_EXPIRES_AT": "<EXPIRES_AT>"
+      }
     }
   }
 }
