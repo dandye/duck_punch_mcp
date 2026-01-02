@@ -1,5 +1,5 @@
 ![Duck Punch MCP](logo.png)
-# Duck Punch MCP
+# Punch an SDK until it quacks like an MCP Server
 
 **Duck Punch MCP** is a collection of [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers that "duck punch" (dynamically wrap) existing Python SDKs to expose their functionality to LLMs.
 
