@@ -220,6 +220,8 @@ def register_tools():
             )
             mcp.add_tool(wrapper)
 
+# Register tools on import
+register_tools()
+
 if __name__ == "__main__":
-    register_tools()
     mcp.run()
