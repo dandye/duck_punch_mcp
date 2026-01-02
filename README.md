@@ -68,6 +68,13 @@ Currently supports:
     # Google Cloud SDK
     # Ensure Application Default Credentials (ADC) are set up:
     # gcloud auth application-default login
+
+    # Fitbit API
+    FITBIT_CLIENT_ID=your_client_id
+    FITBIT_CLIENT_SECRET=your_client_secret
+    FITBIT_ACCESS_TOKEN=your_access_token
+    FITBIT_REFRESH_TOKEN=your_refresh_token
+    FITBIT_EXPIRES_AT=1234567890.0
     ```
 
 ## Usage
