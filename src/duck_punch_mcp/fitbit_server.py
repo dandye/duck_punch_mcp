@@ -84,7 +84,7 @@ def sleep(base_date: str = 'today', user_id: str = None, period: str = None, end
     # client.sleep is curried time_series('sleep', ...)
     return str(client.sleep(user_id=user_id, base_date=base_date, period=period, end_date=end_date))
 
-def activities(base_date: str = 'today', user_id: str = None, period: str = None, end_date: str = None) -> str:
+def activities(base_date: str = 'today', user_id: str = None, period: str = None, end_date: str = None, **kwargs) -> str:
     """
     Get activities data.
 
@@ -94,6 +94,16 @@ def activities(base_date: str = 'today', user_id: str = None, period: str = None
         period: The range for which data will be returned. Options: 1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, max.
         end_date: The end date of the range.
     """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle common hallucination: 'date' instead of 'base_date'
+    if base_date == 'today' and 'date' in kwargs:
+        base_date = kwargs.pop('date')
+
     client = get_client()
     if not client:
         return "Error: Fitbit client not initialized. Check environment variables."
@@ -179,6 +189,13 @@ def register_tools():
                     client = get_client()
                     if not client:
                         return "Error: Fitbit client not initialized."
+
+                    # Handle nested kwargs injection from LLMs
+                    if 'kwargs' in kwargs:
+                        inner_kwargs = kwargs.pop('kwargs')
+                        if isinstance(inner_kwargs, dict):
+                            kwargs.update(inner_kwargs)
+
                     # We invoke the method on the client instance
                     # Since 'func' is unbound class method, we can call it with (client, *args)
                     # OR we can just get the method from the client instance
