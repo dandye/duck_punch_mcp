@@ -1,3 +1,6 @@
 [submodule "external/google-cloud-python"]
 	path = external/google-cloud-python
 	url = https://github.com/googleapis/google-cloud-python.git
+[submodule "external/python-fitbit"]
+	path = external/python-fitbit
+	url = https://github.com/orcasgit/python-fitbit
