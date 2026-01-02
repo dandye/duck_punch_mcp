@@ -68,31 +68,13 @@ def get_client() -> Fitbit:
 # Based on inspection, these map to time_series(resource, ...)
 # Signature of time_series: (self, resource, user_id=None, base_date='today', period=None, end_date=None)
 
-def sleep(base_date: str = 'today', user_id: str = None, period: str = None, end_date: str = None) -> str:
+def sleep(date: str = 'today', user_id: str = None, **kwargs) -> str:
     """
-    Get sleep data.
+    Get sleep logs for a specific date.
 
     Args:
-        base_date: The date of records to be returned. In the format 'yyyy-MM-dd' or 'today'.
+        date: The date of records to be returned. In the format 'yyyy-MM-dd' or 'today'.
         user_id: The encoded ID of the user. Use '-' (dash) for current logged-in user.
-        period: The range for which data will be returned. Options: 1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, max.
-        end_date: The end date of the range.
-    """
-    client = get_client()
-    if not client:
-        return "Error: Fitbit client not initialized. Check environment variables."
-    # client.sleep is curried time_series('sleep', ...)
-    return str(client.sleep(user_id=user_id, base_date=base_date, period=period, end_date=end_date))
-
-def activities(base_date: str = 'today', user_id: str = None, period: str = None, end_date: str = None, **kwargs) -> str:
-    """
-    Get activities data.
-
-    Args:
-        base_date: The date of records to be returned. In the format 'yyyy-MM-dd' or 'today'.
-        user_id: The encoded ID of the user. Use '-' (dash) for current logged-in user.
-        period: The range for which data will be returned. Options: 1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, max.
-        end_date: The end date of the range.
     """
     # Handle nested kwargs injection from LLMs
     if 'kwargs' in kwargs:
@@ -100,41 +82,114 @@ def activities(base_date: str = 'today', user_id: str = None, period: str = None
         if isinstance(inner_kwargs, dict):
             kwargs.update(inner_kwargs)
 
-    # Handle common hallucination: 'date' instead of 'base_date'
-    if base_date == 'today' and 'date' in kwargs:
-        base_date = kwargs.pop('date')
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
 
     client = get_client()
     if not client:
         return "Error: Fitbit client not initialized. Check environment variables."
-    return str(client.activities(user_id=user_id, base_date=base_date, period=period, end_date=end_date))
+    return str(client.sleep(user_id=user_id, date=date))
 
-def body(base_date: str = 'today', user_id: str = None, period: str = None, end_date: str = None) -> str:
+def activities(date: str = 'today', user_id: str = None, **kwargs) -> str:
     """
-    Get body data (weight, bmi, fat).
+    Get daily activity summary.
+
+    Args:
+        date: The date of records to be returned. In the format 'yyyy-MM-dd' or 'today'.
+        user_id: The encoded ID of the user. Use '-' (dash) for current logged-in user.
     """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
+
     client = get_client()
     if not client:
         return "Error: Fitbit client not initialized. Check environment variables."
-    return str(client.body(user_id=user_id, base_date=base_date, period=period, end_date=end_date))
+    return str(client.activities(user_id=user_id, date=date))
 
-def heart(base_date: str = 'today', user_id: str = None, period: str = None, end_date: str = None) -> str:
+def body(date: str = 'today', user_id: str = None, **kwargs) -> str:
     """
-    Get heart rate data.
+    Get body data (weight, bmi, fat) logs.
     """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
+
     client = get_client()
     if not client:
         return "Error: Fitbit client not initialized. Check environment variables."
-    return str(client.heart(user_id=user_id, base_date=base_date, period=period, end_date=end_date))
+    return str(client.body(user_id=user_id, date=date))
 
-def bp(base_date: str = 'today', user_id: str = None, period: str = None, end_date: str = None) -> str:
+def heart(date: str = 'today', user_id: str = None, **kwargs) -> str:
     """
-    Get blood pressure data.
+    Get heart rate logs.
     """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
+
     client = get_client()
     if not client:
         return "Error: Fitbit client not initialized. Check environment variables."
-    return str(client.bp(user_id=user_id, base_date=base_date, period=period, end_date=end_date))
+    return str(client.heart(user_id=user_id, date=date))
+
+def bp(date: str = 'today', user_id: str = None, **kwargs) -> str:
+    """
+    Get blood pressure logs.
+    """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
+
+    client = get_client()
+    if not client:
+        return "Error: Fitbit client not initialized. Check environment variables."
+    return str(client.bp(user_id=user_id, date=date))
 
 def register_tools():
     # Register explicit wrappers
