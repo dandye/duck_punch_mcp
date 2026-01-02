@@ -6,6 +6,7 @@
 Currently supports:
 - **Google SecOps SDK** (Chronicle)
 - **SOAR SDK** (Siemplify)
+- **Google Cloud SDK** (Support for 200+ services including Compute, BigQuery, IAM, etc.)
 
 ## Features
 
@@ -13,6 +14,7 @@ Currently supports:
 - **Unified Interface**: Exposes complex SDK methods as standard MCP tools.
 - **Documentation Overrides**: Injects LLM-friendly documentation where SDK docs are lacking.
 - **Legacy Support**: Handles legacy imports (e.g., `Siemplify.py`) via dynamic path manipulation.
+- **GAPIC Type Handling**: Automatically simplifies complex Protobuf message types for Google Cloud libraries to ensure MCP compatibility.
 
 ## Prerequisites
 
@@ -61,6 +63,10 @@ Currently supports:
 
     # SOAR SDK
     SIEMPLIFY_API_KEY=your-api-key
+
+    # Google Cloud SDK
+    # Ensure Application Default Credentials (ADC) are set up:
+    # gcloud auth application-default login
     ```
 
 ## Usage
@@ -77,12 +83,18 @@ uv run python -m duck_punch_mcp.secops_server
 uv run python -m duck_punch_mcp.soar_server
 ```
 
+### Running the Google Cloud Server
+
+```bash
+uv run python -m duck_punch_mcp.gcp_server
+```
+
 ### Inspecting Tools (Development)
 
 You can use the MCP Inspector to test tools interactively:
 
 ```bash
-npx @modelcontextprotocol/inspector uv run python -m duck_punch_mcp.secops_server
+npx @modelcontextprotocol/inspector uv run python -m duck_punch_mcp.gcp_server
 ```
 
 ## Gemini CLI Configuration
@@ -107,6 +119,10 @@ To use these servers with the Gemini CLI, add the following to your MCP configur
       "env": {
         "SIEMPLIFY_API_KEY": "<YOUR_API_KEY>"
       }
+    },
+    "gcp": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "duck_punch_mcp.gcp_server"]
     }
   }
 }
@@ -118,6 +134,7 @@ The project uses a "duck punching" strategy to wrap external SDKs without modify
 
 - **src/duck_punch_mcp/secops_server.py**: Wraps `external/secops-wrapper`.
 - **src/duck_punch_mcp/soar_server.py**: Wraps `external/soar-sdk`, injecting `SiemplifyUtils` and other legacy dependencies into `sys.path`.
+- **src/duck_punch_mcp/gcp_server.py**: Wraps over 200 Google Cloud Python packages found in `external/google-cloud-python`. It sanitizes method signatures to handle complex Protobuf types incompatible with Pydantic.
 - **src/duck_punch_mcp/mcp_docs/**: Contains documentation overrides (e.g., `get_alerts.md`) to improve LLM reasoning.
 
 ## Contributing
