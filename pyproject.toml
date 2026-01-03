@@ -21,6 +21,7 @@ dependencies = [
     "python-dotenv",
     "fitbit",
     "requests-oauthlib",
+    "google-api-python-client>=2.187.0",
 ]
 
 [build-system]
