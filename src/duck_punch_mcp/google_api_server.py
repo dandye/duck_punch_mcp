@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import FastMCP
 from googleapiclient.discovery import build
 import googleapiclient.discovery
+import google.auth
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -80,13 +81,24 @@ _services = {}
 # Global tool registry for listing
 _registered_tools = []
 
-def get_service(api_name, api_version):
+# Global registry for API scopes
+# API Name -> List of Scopes
+_api_scopes = {}
+
+def get_service(api_name, api_version, scopes=None):
     key = f"{api_name}:{api_version}"
     if key in _services:
         return _services[key]
 
     try:
-        service = build(api_name, api_version)
+        # Explicitly load credentials with scopes if provided
+        # This ensures we request the correct permissions from ADC
+        if scopes:
+            credentials, _ = google.auth.default(scopes=scopes)
+            service = build(api_name, api_version, credentials=credentials)
+        else:
+            service = build(api_name, api_version)
+
         _services[key] = service
         return service
     except Exception as e:
@@ -154,6 +166,9 @@ def create_tool_wrapper(service_factory, resource_path, method_name, tool_name, 
         'object': dict
     }
 
+    # Mapping from sanitized name to original name
+    param_mapping = {}
+
     for param_name, param_info in parameters.items():
         p_type_str = param_info.get('type', 'string')
         p_type = type_map.get(p_type_str, str)
@@ -163,15 +178,19 @@ def create_tool_wrapper(service_factory, resource_path, method_name, tool_name, 
 
         kind = inspect.Parameter.KEYWORD_ONLY
 
+        # Sanitize parameter name (replace . with _)
+        sanitized_param_name = param_name.replace('.', '_')
+        param_mapping[sanitized_param_name] = param_name
+
         sig_params.append(
             inspect.Parameter(
-                name=param_name,
+                name=sanitized_param_name,
                 kind=kind,
                 default=default,
                 annotation=p_type
             )
         )
-        annotations[param_name] = p_type
+        annotations[sanitized_param_name] = p_type
 
     if 'request' in method_desc:
         sig_params.append(
@@ -191,7 +210,19 @@ def create_tool_wrapper(service_factory, resource_path, method_name, tool_name, 
         try:
             resource = service_factory()
             func = getattr(resource, method_name)
-            request = func(**kwargs)
+
+            # Map kwargs back to original parameter names
+            api_kwargs = {}
+            for k, v in kwargs.items():
+                if k == 'body':
+                    api_kwargs['body'] = v
+                elif k in param_mapping:
+                    api_kwargs[param_mapping[k]] = v
+                else:
+                    # Fallback
+                    api_kwargs[k] = v
+
+            request = func(**api_kwargs)
             response = request.execute()
             return json.dumps(response, indent=2)
         except Exception as e:
@@ -218,6 +249,13 @@ def register_tools_for_api(api_name, api_version):
 
         rd = introspection_service._resourceDesc
 
+        # Extract scopes
+        auth_info = rd.get('auth', {}).get('oauth2', {}).get('scopes', {})
+        scopes = list(auth_info.keys())
+
+        # Register scopes
+        _api_scopes[f"{api_name}:{api_version}"] = scopes
+
         def process_resource(resource_desc, path_prefix, resource_accessor_factory):
             methods = resource_desc.get('methods', {})
             for m_name, m_desc in methods.items():
@@ -229,23 +267,23 @@ def register_tools_for_api(api_name, api_version):
 
                 factory = resource_accessor_factory
 
-                wrapper = create_tool_wrapper(
-                    factory,
-                    path_prefix,
-                    m_name,
-                    tool_name,
-                    m_desc
-                )
-
                 try:
+                    wrapper = create_tool_wrapper(
+                        factory,
+                        path_prefix,
+                        m_name,
+                        tool_name,
+                        m_desc
+                    )
                     mcp.add_tool(wrapper)
                     _registered_tools.append({
                         "name": tool_name,
                         "description": m_desc.get('description', '')
                     })
-                except ValueError:
-                    # Tool already exists, maybe skip or warn
-                    pass
+                except Exception as e:
+                    # Tool already exists or failed to register
+                    # We log but continue to try registering other tools
+                    logger.debug(f"Failed to register tool {tool_name}: {e}")
 
             resources = resource_desc.get('resources', {})
             for r_name, r_desc in resources.items():
@@ -261,7 +299,8 @@ def register_tools_for_api(api_name, api_version):
         prefix = api_name.title()
 
         def service_factory():
-            return get_service(api_name, api_version)
+            # Pass captured scopes to get_service
+            return get_service(api_name, api_version, scopes=scopes)
 
         process_resource(rd, prefix, service_factory)
 
@@ -317,6 +356,42 @@ def list_google_tools(prefix: str = None, include_descriptions: bool = False) ->
             results.append(name)
 
     return "\n".join(results)
+
+@mcp.tool()
+def list_google_scopes(api_filter: str = None) -> str:
+    """
+    Lists the OAuth2 scopes required for the registered Google APIs.
+    Returns a `gcloud auth` command to authenticate with these scopes.
+
+    Args:
+        api_filter: Optional filter for API name (e.g. 'people' or 'translate').
+    """
+    all_scopes = set()
+
+    matched_apis = []
+
+    for api_key, scopes in _api_scopes.items():
+        if api_filter and api_filter.lower() not in api_key.lower():
+            continue
+
+        matched_apis.append(api_key)
+        for s in scopes:
+            all_scopes.add(s)
+
+    if not all_scopes:
+        return "No scopes found matching filter."
+
+    sorted_scopes = sorted(list(all_scopes))
+
+    output = []
+    output.append(f"Found {len(sorted_scopes)} scopes for {len(matched_apis)} APIs:")
+    for s in sorted_scopes:
+        output.append(f"- {s}")
+
+    output.append("\nTo authenticate with these scopes, run:")
+    output.append("\ngcloud auth application-default login --scopes " + ",".join(sorted_scopes))
+
+    return "\n".join(output)
 
 if __name__ == "__main__":
     main()
