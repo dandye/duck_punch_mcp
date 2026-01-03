@@ -27,8 +27,8 @@ mcp = FastMCP("GoogleAPI")
 # Configuration
 # Users can specify which APIs to load via environment variable
 # GOOGLE_APIS="translate:v2,gmail:v1"
-# If not set, or set to "ALL", we discover all preferred APIs.
-GOOGLE_APIS_ENV = os.getenv("GOOGLE_APIS", "ALL")
+# Default to a small safe set to avoid context window explosion.
+GOOGLE_APIS_ENV = os.getenv("GOOGLE_APIS", "translate:v2")
 
 def get_all_apis():
     """Fetch all preferred APIs from the Google Discovery Directory."""
@@ -52,6 +52,8 @@ def get_all_apis():
 
 def get_target_apis():
     if GOOGLE_APIS_ENV == "ALL":
+        # WARNING: This might cause context window issues!
+        logger.warning("Loading ALL APIs - this may exceed LLM context limits.")
         return get_all_apis()
 
     apis = []
@@ -64,14 +66,6 @@ def get_target_apis():
                 apis.append((name, version))
             else:
                 logger.warning(f"Skipping malformed API spec: {part}. Format should be name:version")
-
-    if not apis:
-         # Fallback to ALL if empty string provided? Or maybe just return empty list.
-         # If explictly empty string, maybe they want nothing?
-         # But usually empty env var means default.
-         # If GOOGLE_APIS_ENV was actually empty string (not None), we might want default.
-         if not GOOGLE_APIS_ENV: # None or empty
-             return get_all_apis()
 
     return apis
 
@@ -392,6 +386,73 @@ def list_google_scopes(api_filter: str = None) -> str:
     output.append("\ngcloud auth application-default login --scopes " + ",".join(sorted_scopes))
 
     return "\n".join(output)
+
+@mcp.tool()
+def search_google_apis(query: str) -> str:
+    """
+    Searches for available Google APIs in the Discovery Directory.
+    Use this to find the 'name' and 'version' needed for add_google_api.
+
+    Args:
+        query: Search term (e.g., 'calendar', 'drive', 'people').
+    """
+    try:
+        # We reuse the logic but don't log as much
+        url = "https://www.googleapis.com/discovery/v1/apis"
+        resp = requests.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+        results = []
+        for item in data.get('items', []):
+            if not item.get('preferred', False):
+                continue
+
+            name = item['name']
+            title = item.get('title', '')
+            description = item.get('description', '')
+
+            if query.lower() in name.lower() or query.lower() in title.lower() or query.lower() in description.lower():
+                results.append(f"{name} ({item['version']}): {title}")
+
+        if not results:
+            return f"No APIs found matching '{query}'."
+
+        return "Found APIs:\n" + "\n".join(results[:20]) # Limit to 20 to avoid context blowup
+
+    except Exception as e:
+        return f"Error searching APIs: {e}"
+
+@mcp.tool()
+def add_google_api(api_name: str, version: str) -> str:
+    """
+    Dynamically registers tools for a specific Google API.
+
+    Args:
+        api_name: The name of the API (e.g., 'calendar').
+        version: The version of the API (e.g., 'v3').
+    """
+    try:
+        # Check if already registered to avoid duplicates?
+        # register_tools_for_api handles checking if tool exists (mostly).
+        # But let's check our scope registry
+        key = f"{api_name}:{version}"
+        if key in _api_scopes:
+            return f"API {api_name} {version} is already registered."
+
+        register_tools_for_api(api_name, version)
+
+        # Check if we actually added anything
+        # We can check if _api_scopes now has it
+        if key in _api_scopes:
+            # Count tools?
+            count = sum(1 for t in _registered_tools if t['name'].lower().startswith(api_name.lower()))
+            return f"Successfully registered {api_name} {version}. Added tools (approx count: {count}).\nRun list_google_tools to see them."
+        else:
+             return f"Failed to register {api_name} {version}. Check logs or verify API name/version."
+
+    except Exception as e:
+        return f"Error adding API: {e}"
 
 if __name__ == "__main__":
     main()
