@@ -1,204 +1,276 @@
-from typing import Any, Dict, Optional
+
 import os
+import importlib
 import inspect
-import fitbit
+import functools
+import sys
+import json
+from typing import Any, Optional
+
 from mcp.server.fastmcp import FastMCP
 from dotenv import load_dotenv
 
+# Import Fitbit library
+try:
+    import fitbit
+    from fitbit import Fitbit
+except ImportError:
+    # This will be handled by the check in imports or at runtime
+    pass
+
 load_dotenv()
 
-# Initialize the MCP server
-mcp = FastMCP("fitbit")
+# Initialize FastMCP
+mcp = FastMCP("Fitbit")
 
-# Initialize Fitbit client
-client_id = os.getenv("FITBIT_CLIENT_ID")
-client_secret = os.getenv("FITBIT_CLIENT_SECRET")
-access_token = os.getenv("FITBIT_ACCESS_TOKEN")
-refresh_token = os.getenv("FITBIT_REFRESH_TOKEN")
-expires_at = os.getenv("FITBIT_EXPIRES_AT")
+# Global client instance
+_client = None
 
-if expires_at:
-    try:
-        expires_at = float(expires_at)
-    except ValueError:
-        expires_at = None
+def get_client() -> Fitbit:
+    global _client
+    if _client is None:
+        client_id = os.environ.get("FITBIT_CLIENT_ID")
+        client_secret = os.environ.get("FITBIT_CLIENT_SECRET")
+        access_token = os.environ.get("FITBIT_ACCESS_TOKEN")
+        refresh_token = os.environ.get("FITBIT_REFRESH_TOKEN")
+        expires_at = os.environ.get("FITBIT_EXPIRES_AT")
 
-client = None
-if client_id and client_secret and access_token and refresh_token:
-    client = fitbit.Fitbit(
-        client_id,
-        client_secret,
-        access_token=access_token,
-        refresh_token=refresh_token,
-        expires_at=expires_at,
-        refresh_cb=lambda token: print("Token refreshed")
-    )
+        if not all([client_id, client_secret, access_token, refresh_token]):
+             # We allow starting without creds for inspection, but tools will fail
+             return None
+
+        def refresh_cb(token):
+            """
+            Callback for token refresh.
+            IMPORTANT: Do not log sensitive tokens to stdout/stderr.
+            In a real app, you would save these to a DB or file.
+            """
+            # Implementation specific: just update the env vars in memory or similar?
+            # For this MCP server, we might just print a message that token refreshed (without the token)
+            # or try to write back to .env? Writing back to .env is risky/complex.
+            # We'll just update our in-memory understanding if needed, but requests-oauthlib handles the session.
+            # The memory explicitly says: "prevent logging sensitive tokens".
+            print("Fitbit access token refreshed.", file=sys.stderr)
+
+        _client = Fitbit(
+            client_id,
+            client_secret,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_at=float(expires_at) if expires_at else None,
+            refresh_cb=refresh_cb
+        )
+
+    return _client
+
+
+# Explicit wrappers for curried/dynamic methods
+# Based on inspection, these map to time_series(resource, ...)
+# Signature of time_series: (self, resource, user_id=None, base_date='today', period=None, end_date=None)
+
+def sleep(date: str = 'today', user_id: str = None, **kwargs) -> str:
+    """
+    Get sleep logs for a specific date.
+
+    Args:
+        date: The date of records to be returned. In the format 'yyyy-MM-dd' or 'today'.
+        user_id: The encoded ID of the user. Use '-' (dash) for current logged-in user.
+    """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
+
+    client = get_client()
+    if not client:
+        return "Error: Fitbit client not initialized. Check environment variables."
+    return str(client.sleep(user_id=user_id, date=date))
+
+def activities(date: str = 'today', user_id: str = None, **kwargs) -> str:
+    """
+    Get daily activity summary.
+
+    Args:
+        date: The date of records to be returned. In the format 'yyyy-MM-dd' or 'today'.
+        user_id: The encoded ID of the user. Use '-' (dash) for current logged-in user.
+    """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
+
+    client = get_client()
+    if not client:
+        return "Error: Fitbit client not initialized. Check environment variables."
+    return str(client.activities(user_id=user_id, date=date))
+
+def body(date: str = 'today', user_id: str = None, **kwargs) -> str:
+    """
+    Get body data (weight, bmi, fat) logs.
+    """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
+
+    client = get_client()
+    if not client:
+        return "Error: Fitbit client not initialized. Check environment variables."
+    return str(client.body(user_id=user_id, date=date))
+
+def heart(date: str = 'today', user_id: str = None, **kwargs) -> str:
+    """
+    Get heart rate logs.
+    """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
+
+    client = get_client()
+    if not client:
+        return "Error: Fitbit client not initialized. Check environment variables."
+    return str(client.heart(user_id=user_id, date=date))
+
+def bp(date: str = 'today', user_id: str = None, **kwargs) -> str:
+    """
+    Get blood pressure logs.
+    """
+    # Handle nested kwargs injection from LLMs
+    if 'kwargs' in kwargs:
+        inner_kwargs = kwargs.pop('kwargs')
+        if isinstance(inner_kwargs, dict):
+            kwargs.update(inner_kwargs)
+
+    # Handle 'date' passed in kwargs
+    if date == 'today' and 'date' in kwargs:
+        date = kwargs.pop('date')
+
+    # Handle common hallucination: 'base_date' instead of 'date'
+    if date == 'today' and 'base_date' in kwargs:
+        date = kwargs.pop('base_date')
+
+    client = get_client()
+    if not client:
+        return "Error: Fitbit client not initialized. Check environment variables."
+    return str(client.bp(user_id=user_id, date=date))
 
 def register_tools():
-    """
-    Dynamically registers tools from the Fitbit SDK.
-    Iterates over RESOURCE_LIST and QUALIFIERS to find potential methods.
-    """
-    if not client:
-        print("Fitbit client not initialized. Tools will not be registered.")
-        return
+    # Register explicit wrappers
+    mcp.add_tool(sleep)
+    mcp.add_tool(activities)
+    mcp.add_tool(body)
+    mcp.add_tool(heart)
+    mcp.add_tool(bp)
 
-    # Helper function to create a wrapper for the Fitbit method
-    def create_wrapper(method_name, method):
-        # Explicit wrappers for key methods to ensure correct schema generation
-        if method_name == 'sleep':
-            def sleep(date: str, user_id: Optional[str] = None) -> str:
-                """
-                Get sleep data for a specific date.
+    # Discovery of other methods
+    # We will inspect the Fitbit class and register methods that look like tools
+    # excluding the ones we already registered or are problematic
 
-                Args:
-                    date: The date to get sleep data for (format: YYYY-MM-DD)
-                    user_id: The user ID (defaults to current user)
-                """
-                try:
-                    kwargs = {'date': date}
-                    if user_id:
-                        kwargs['user_id'] = user_id
-                    result = method(**kwargs)
-                    return str(result)
-                except Exception as e:
-                    return f"Error executing {method_name}: {str(e)}"
-            return sleep
+    # List of explicit wrappers names
+    explicit_names = ['sleep', 'activities', 'body', 'heart', 'bp']
 
-        elif method_name == 'activities_daily':
-             def activities_daily(date: str, user_id: Optional[str] = None) -> str:
-                """
-                Get daily activity summary for a specific date.
+    for name, method in inspect.getmembers(Fitbit):
+        if name.startswith("_"):
+            continue
 
-                Args:
-                    date: The date to get activity data for (format: YYYY-MM-DD)
-                    user_id: The user ID (defaults to current user)
-                """
-                try:
-                    kwargs = {'date': date}
-                    if user_id:
-                        kwargs['user_id'] = user_id
-                    result = method(**kwargs)
-                    return str(result)
-                except Exception as e:
-                    return f"Error executing {method_name}: {str(e)}"
-             return activities_daily
+        if name in explicit_names:
+            continue
 
-        elif method_name == 'heart':
-             def heart(date: str, user_id: Optional[str] = None) -> str:
-                """
-                Get heart rate data for a specific date.
+        if not inspect.isfunction(method):
+            continue
 
-                Args:
-                    date: The date to get heart rate data for (format: YYYY-MM-DD)
-                    user_id: The user ID (defaults to current user)
-                """
-                try:
-                    kwargs = {'date': date}
-                    if user_id:
-                        kwargs['user_id'] = user_id
-                    result = method(**kwargs)
-                    return str(result)
-                except Exception as e:
-                    return f"Error executing {method_name}: {str(e)}"
-             return heart
+        # Skip methods that are just constants or properties (though isfunction checks this mostly)
 
-        elif method_name == 'bp':
-             def bp(date: str, user_id: Optional[str] = None) -> str:
-                """
-                Get blood pressure data for a specific date.
+        try:
+            sig = inspect.signature(method)
+            # Most methods take 'self' as first arg, which we need to handle by injecting client
 
-                Args:
-                    date: The date to get BP data for (format: YYYY-MM-DD)
-                    user_id: The user ID (defaults to current user)
-                """
-                try:
-                    kwargs = {'date': date}
-                    if user_id:
-                        kwargs['user_id'] = user_id
-                    result = method(**kwargs)
-                    return str(result)
-                except Exception as e:
-                    return f"Error executing {method_name}: {str(e)}"
-             return bp
+            # Create a wrapper
+            # We need to act carefully about signature
+            # 'self' is the first parameter
 
-        elif method_name == 'user_profile_get':
-             def user_profile_get(user_id: Optional[str] = None) -> str:
-                """
-                Get user profile.
+            params = list(sig.parameters.values())
+            if not params or params[0].name != 'self':
+                # Unexpected signature for an instance method?
+                # Actually, inspect.getmembers(Fitbit) returns unbound functions
+                pass
 
-                Args:
-                    user_id: The user ID (defaults to current user)
-                """
-                try:
-                    kwargs = {}
-                    if user_id:
-                        kwargs['user_id'] = user_id
-                    result = method(**kwargs)
-                    return str(result)
-                except Exception as e:
-                    return f"Error executing {method_name}: {str(e)}"
-             return user_profile_get
+            # Prepare new signature (remove 'self')
+            new_params = params[1:]
+            new_sig = sig.replace(parameters=new_params)
 
-        # Fallback for other methods
-        def wrapper(**kwargs: Any) -> str:
-            """
-            Dynamically wrapped Fitbit API method.
-            Use this if no specific tool is available.
-            Arguments are passed directly to the SDK method.
-            Common args: date (YYYY-MM-DD), user_id, base_date, period.
-            """
-            try:
-                result = method(**kwargs)
-                return str(result)
-            except Exception as e:
-                return f"Error executing {method_name}: {str(e)}"
+            # Create wrapper
+            # We use a closure to capture the method name/func
+            def create_wrapper(func, func_name):
+                @functools.wraps(func)
+                def wrapper(*args, **kwargs):
+                    client = get_client()
+                    if not client:
+                        return "Error: Fitbit client not initialized."
 
-        return wrapper
+                    # Handle nested kwargs injection from LLMs
+                    if 'kwargs' in kwargs:
+                        inner_kwargs = kwargs.pop('kwargs')
+                        if isinstance(inner_kwargs, dict):
+                            kwargs.update(inner_kwargs)
 
-    # Iterate through resources and qualifiers
-    # Fitbit SDK uses `__getattr__` or `__init__` magic with these lists to create methods.
-    # Typically methods are like `client.sleep()`, `client.activities_daily()`, etc.
-    # Or sometimes `client.time_series('activities/steps', ...)`
+                    # We invoke the method on the client instance
+                    # Since 'func' is unbound class method, we can call it with (client, *args)
+                    # OR we can just get the method from the client instance
+                    bound_method = getattr(client, func_name)
+                    return str(bound_method(*args, **kwargs))
 
-    # Based on memory: "requires iterating over Fitbit.RESOURCE_LIST and Fitbit.QUALIFIERS"
+                return wrapper
 
-    # Let's see what methods are actually available on the client instance.
-    # The python-fitbit library dynamically adds methods.
+            wrapper = create_wrapper(method, name)
+            wrapper.__signature__ = new_sig
 
-    # We will try to construct method names based on resources and check if they exist.
+            mcp.add_tool(wrapper)
 
-    resources = getattr(fitbit.Fitbit, 'RESOURCE_LIST', [])
-    qualifiers = getattr(fitbit.Fitbit, 'QUALIFIERS', [])
+        except ValueError:
+            # Could not get signature
+            continue
+        except Exception as e:
+            print(f"Failed to register tool {name}: {e}")
 
-    # Also standard methods that might be useful
-    standard_methods = [
-        'user_profile_get', 'activities_daily', 'activities_weekly',
-        'sleep', 'heart', 'bp', 'activities', 'food_logs', 'water_logs',
-        'body_fat_logs', 'body_weight_logs'
-    ]
-
-    # Combine potential method names
-    potential_methods = set(standard_methods)
-
-    # Add resources as potential methods (e.g. 'sleep' is in RESOURCE_LIST)
-    for resource in resources:
-        potential_methods.add(resource)
-
-    # Check what exists on the client
-    for method_name in potential_methods:
-        if hasattr(client, method_name):
-            method = getattr(client, method_name)
-            if callable(method):
-                tool_name = method_name.replace("_", "-")
-                wrapper = create_wrapper(method_name, method)
-
-                # Register the tool
-                # Note: We use the function name from the wrapper if available to help introspection
-                mcp.tool(name=tool_name)(wrapper)
-                print(f"Registered tool: {tool_name}")
-
-# Register tools at module level so they are available on import
+# Register tools on import
 register_tools()
 
 if __name__ == "__main__":

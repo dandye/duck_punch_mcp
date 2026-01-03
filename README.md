@@ -7,7 +7,7 @@ Currently supports:
 - **Google SecOps SDK** (Chronicle)
 - **SOAR SDK** (Siemplify)
 - **Google Cloud SDK** (Support for 200+ services including Compute, BigQuery, IAM, etc.)
-- **Fitbit API** (Access to user data like sleep, activities, heart rate, etc.)
+- **Fitbit SDK** (Support for sleep, activities, body, heart, etc.)
 
 ## Features
 
@@ -70,11 +70,11 @@ Currently supports:
     # gcloud auth application-default login
 
     # Fitbit API
-    FITBIT_CLIENT_ID=your-client-id
-    FITBIT_CLIENT_SECRET=your-client-secret
-    FITBIT_ACCESS_TOKEN=your-access-token
-    FITBIT_REFRESH_TOKEN=your-refresh-token
-    FITBIT_EXPIRES_AT=your-expires-at-timestamp
+    FITBIT_CLIENT_ID=your_client_id
+    FITBIT_CLIENT_SECRET=your_client_secret
+    FITBIT_ACCESS_TOKEN=your_access_token
+    FITBIT_REFRESH_TOKEN=your_refresh_token
+    FITBIT_EXPIRES_AT=1234567890.0
     ```
 
 ## Usage
@@ -146,7 +146,7 @@ To use these servers with the Gemini CLI, add the following to your MCP configur
         "FITBIT_CLIENT_SECRET": "<YOUR_CLIENT_SECRET>",
         "FITBIT_ACCESS_TOKEN": "<YOUR_ACCESS_TOKEN>",
         "FITBIT_REFRESH_TOKEN": "<YOUR_REFRESH_TOKEN>",
-        "FITBIT_EXPIRES_AT": "<YOUR_EXPIRES_AT>"
+        "FITBIT_EXPIRES_AT": "<EXPIRES_AT>"
       }
     }
   }
