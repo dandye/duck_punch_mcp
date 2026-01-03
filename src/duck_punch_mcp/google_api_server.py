@@ -4,6 +4,8 @@ import sys
 import json
 import logging
 import inspect
+import concurrent.futures
+import requests
 from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import FastMCP
 from googleapiclient.discovery import build
@@ -21,22 +23,53 @@ mcp = FastMCP("GoogleAPI")
 
 # Configuration
 # Users can specify which APIs to load via environment variable
-# GOOGLE_APIS="translate:v2,gmail:v1,calendar:v3"
-GOOGLE_APIS_ENV = os.getenv("GOOGLE_APIS", "translate:v2")
+# GOOGLE_APIS="translate:v2,gmail:v1"
+# If not set, or set to "ALL", we discover all preferred APIs.
+GOOGLE_APIS_ENV = os.getenv("GOOGLE_APIS", "ALL")
+
+def get_all_apis():
+    """Fetch all preferred APIs from the Google Discovery Directory."""
+    try:
+        url = "https://www.googleapis.com/discovery/v1/apis"
+        logger.info(f"Fetching API list from {url}...")
+        resp = requests.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+        apis = []
+        for item in data.get('items', []):
+            if item.get('preferred', False):
+                apis.append((item['name'], item['version']))
+
+        logger.info(f"Discovered {len(apis)} preferred APIs.")
+        return apis
+    except Exception as e:
+        logger.error(f"Failed to fetch API list: {e}")
+        return []
 
 def get_target_apis():
+    if GOOGLE_APIS_ENV == "ALL":
+        return get_all_apis()
+
     apis = []
     if GOOGLE_APIS_ENV:
         for part in GOOGLE_APIS_ENV.split(","):
             part = part.strip()
+            if not part: continue
             if ":" in part:
                 name, version = part.split(":", 1)
                 apis.append((name, version))
             else:
-                # Default versions if not specified?
-                # Better to require it or fetch preferred.
-                # For now require it.
                 logger.warning(f"Skipping malformed API spec: {part}. Format should be name:version")
+
+    if not apis:
+         # Fallback to ALL if empty string provided? Or maybe just return empty list.
+         # If explictly empty string, maybe they want nothing?
+         # But usually empty env var means default.
+         # If GOOGLE_APIS_ENV was actually empty string (not None), we might want default.
+         if not GOOGLE_APIS_ENV: # None or empty
+             return get_all_apis()
+
     return apis
 
 # Global service cache
@@ -47,53 +80,25 @@ def get_service(api_name, api_version):
     if key in _services:
         return _services[key]
 
-    # We rely on ADC or env vars for credentials.
-    # `build` uses default credentials if not provided.
-    # For introspection during startup we might fail if no creds?
-    # Actually `build` fetches discovery doc, which is public usually.
-    # But to create the service it might check creds?
-    # The discovery doc is public. Creating the service object is cheap.
-    # The user might need valid creds to EXECUTE.
     try:
-        # We can pass a dummy key for introspection if needed, but we want a real client for execution.
-        # So we should let `build` find creds.
-        # But if we are just exploring structure, we might fallback?
         service = build(api_name, api_version)
         _services[key] = service
         return service
     except Exception as e:
         logger.error(f"Failed to build service {key}: {e}")
-        # Fallback with dummy key for introspection purposes ONLY?
-        # No, because then the wrapper will use that client and fail on execution.
-        # We assume the environment is set up correctly (ADC).
         raise e
 
 def create_tool_wrapper(service_factory, resource_path, method_name, tool_name, method_desc):
     """
     Creates a wrapper function for an API method.
-
-    service_factory: callable returning the (service, resource_object)
-    resource_path: list of resource names leading to this method
-    method_name: name of the method
-    tool_name: name exposed to MCP
-    method_desc: dict from discovery doc describing the method (parameters, etc)
     """
 
     parameters = method_desc.get('parameters', {})
     doc = method_desc.get('description', '')
 
-    # Construct signature
-    # We need to map discovery parameters to function parameters
-    # The parameters dict contains:
-    # "q": { "type": "string", "description": "...", "required": true, "location": "query" }
-
-    # We will accept **kwargs to catch everything, but for better LLM performance
-    # we should explicitly list parameters.
-
     sig_params = []
     annotations = {}
 
-    # Helper to map JSON schema types to Python types
     type_map = {
         'string': str,
         'integer': int,
@@ -110,11 +115,7 @@ def create_tool_wrapper(service_factory, resource_path, method_name, tool_name, 
         required = param_info.get('required', False)
         default = inspect.Parameter.empty if required else None
 
-        # Determine kind. Most are keyword arguments.
         kind = inspect.Parameter.KEYWORD_ONLY
-
-        # We can make required ones POSITIONAL_OR_KEYWORD if we want,
-        # but KEYWORD_ONLY is safer for many params.
 
         sig_params.append(
             inspect.Parameter(
@@ -126,11 +127,7 @@ def create_tool_wrapper(service_factory, resource_path, method_name, tool_name, 
         )
         annotations[param_name] = p_type
 
-    # If the method supports a request body (e.g. POST), it usually has a 'body' parameter in Python client
-    # or takes a dict. The discovery doc says "request": { "$ref": "..." }
     if 'request' in method_desc:
-        # It expects a body.
-        # In python client, this is usually passed as `body` argument.
         sig_params.append(
             inspect.Parameter(
                 name='body',
@@ -142,24 +139,14 @@ def create_tool_wrapper(service_factory, resource_path, method_name, tool_name, 
         annotations['body'] = dict
         doc += "\n\n:param body: The request body as a JSON object."
 
-    # Return annotation
     annotations['return'] = str
 
-    # Define wrapper
     def wrapper(**kwargs):
         try:
-            # Get resource
             resource = service_factory()
-
-            # The method on the resource
             func = getattr(resource, method_name)
-
-            # Call it
             request = func(**kwargs)
-
-            # Execute
             response = request.execute()
-
             return json.dumps(response, indent=2)
         except Exception as e:
             return f"Error executing {tool_name}: {e}"
@@ -176,12 +163,7 @@ def create_tool_wrapper(service_factory, resource_path, method_name, tool_name, 
 
 def register_tools_for_api(api_name, api_version):
     try:
-        # For introspection, we need a service object.
-        # If credentials are missing, this might fail.
-        # Strategy: Use a dummy key for introspection phase if real build fails?
-        # But we need the real service factory for the tool.
-        # Let's try to build with dummy key for *discovery*, but use `get_service` (which tries real creds) for execution.
-
+        # Use dummy key for introspection to avoid startup auth issues
         introspection_service = build(api_name, api_version, developerKey="AIzaDummyKeyForIntrospection")
 
         if not hasattr(introspection_service, '_resourceDesc'):
@@ -191,37 +173,33 @@ def register_tools_for_api(api_name, api_version):
         rd = introspection_service._resourceDesc
 
         def process_resource(resource_desc, path_prefix, resource_accessor_factory):
-            """
-            resource_desc: dict of resource description
-            path_prefix: string prefix for tool name (e.g. Translate_detections)
-            resource_accessor_factory: function that returns the resource object from the service
-            """
-
-            # Methods on this resource
             methods = resource_desc.get('methods', {})
             for m_name, m_desc in methods.items():
                 tool_name = f"{path_prefix}_{m_name}"
 
-                # Factory that gets the correct resource
-                # We need to capture the current resource_accessor_factory
+                # Check if tool already exists (FastMCP might raise or warn)
+                # We can pre-check? FastMCP doesn't expose easy check.
+                # But names should be unique by prefix.
+
                 factory = resource_accessor_factory
 
-                mcp.add_tool(create_tool_wrapper(
+                wrapper = create_tool_wrapper(
                     factory,
                     path_prefix,
                     m_name,
                     tool_name,
                     m_desc
-                ))
+                )
 
-            # Sub-resources
+                try:
+                    mcp.add_tool(wrapper)
+                except ValueError:
+                    # Tool already exists, maybe skip or warn
+                    pass
+
             resources = resource_desc.get('resources', {})
             for r_name, r_desc in resources.items():
                 new_prefix = f"{path_prefix}_{r_name}"
-
-                # New factory: gets parent resource, then calls sub-resource method
-                # e.g. service.translations()
-                # But wait, `translations` is a method on service.
 
                 def make_sub_factory(parent_factory, res_name):
                     return lambda: getattr(parent_factory(), res_name)()
@@ -230,29 +208,40 @@ def register_tools_for_api(api_name, api_version):
 
                 process_resource(r_desc, new_prefix, sub_factory)
 
-        # Top level methods
-        # Prefix: TitleCase(api_name) e.g. Translate
         prefix = api_name.title()
 
-        # Factory for top level service
         def service_factory():
             return get_service(api_name, api_version)
 
         process_resource(rd, prefix, service_factory)
 
-        logger.info(f"Registered tools for {api_name} {api_version}")
+        # logger.info(f"Registered tools for {api_name} {api_version}")
 
     except Exception as e:
-        logger.error(f"Error registering {api_name} {api_version}: {e}")
+        logger.warning(f"Skipping {api_name} {api_version} due to error: {e}")
 
 def main():
     targets = get_target_apis()
+
     if not targets:
-        logger.warning("No APIs configured. Set GOOGLE_APIS env var (e.g. 'translate:v2').")
+        logger.warning("No APIs found to register.")
+        return
 
-    for name, version in targets:
-        register_tools_for_api(name, version)
+    logger.info(f"Registering tools for {len(targets)} APIs. This may take a while...")
 
+    # Parallelize tool registration
+    # We use ThreadPoolExecutor because build() is I/O bound (network)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(register_tools_for_api, name, version): (name, version) for name, version in targets}
+
+        for future in concurrent.futures.as_completed(futures):
+            name, version = futures[future]
+            try:
+                future.result()
+            except Exception as exc:
+                logger.error(f"{name} {version} generated an exception: {exc}")
+
+    logger.info("Tool registration complete.")
     mcp.run()
 
 if __name__ == "__main__":
