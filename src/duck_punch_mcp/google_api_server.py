@@ -5,6 +5,8 @@ import json
 import logging
 import inspect
 import concurrent.futures
+import hashlib
+import re
 import requests
 from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import FastMCP
@@ -91,10 +93,51 @@ def get_service(api_name, api_version):
         logger.error(f"Failed to build service {key}: {e}")
         raise e
 
+def sanitize_tool_name(name: str) -> str:
+    """
+    Sanitizes a tool name to be a valid MCP tool name (max 64 chars, alphanumeric, _, -, ., :).
+    """
+    # Replace invalid chars with _
+    sanitized = re.sub(r'[^a-zA-Z0-9_.:-]', '_', name)
+
+    # Ensure it starts with a letter or underscore
+    if not sanitized[0].isalpha() and sanitized[0] != '_':
+        sanitized = 'A' + sanitized
+
+    if len(sanitized) <= 64:
+        return sanitized
+
+    # If too long, keep prefix and suffix, and hash the middle
+    # We want to preserve readability of the start (API/Resource) and end (Method)
+    # 64 chars limit.
+    # Keep 25 chars prefix, 8 chars hash, 30 chars suffix? = 63.
+
+    # e.g. Accesscontextmanager_accessPolicies_accessLevels_testIamPermissions (71)
+    # Prefix: Accesscontextmanager_acce (25)
+    # Suffix: Levels_testIamPermissions (30)
+    # Hash of middle: ...
+
+    # A simple deterministic strategy:
+    # Hash the full name -> 8 chars (hex is 2 chars per byte, so 4 bytes)
+    # Take first 55 chars + '_' + 8 char hash?
+    # Or just hash the whole thing if it's too long? No, readability matters.
+
+    # Strategy:
+    # 1. Take first 30 chars.
+    # 2. Take last 25 chars.
+    # 3. Middle 8 chars hash of the *entire* string (to avoid collision if start/end matches).
+
+    h = hashlib.md5(name.encode('utf-8')).hexdigest()[:8]
+    prefix = sanitized[:27]
+    suffix = sanitized[-27:]
+
+    return f"{prefix}_{h}_{suffix}"
+
 def create_tool_wrapper(service_factory, resource_path, method_name, tool_name, method_desc):
     """
     Creates a wrapper function for an API method.
     """
+    tool_name = sanitize_tool_name(tool_name)
 
     parameters = method_desc.get('parameters', {})
     doc = method_desc.get('description', '')
