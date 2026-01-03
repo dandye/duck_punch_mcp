@@ -75,6 +75,9 @@ def get_target_apis():
 # Global service cache
 _services = {}
 
+# Global tool registry for listing
+_registered_tools = []
+
 def get_service(api_name, api_version):
     key = f"{api_name}:{api_version}"
     if key in _services:
@@ -193,6 +196,10 @@ def register_tools_for_api(api_name, api_version):
 
                 try:
                     mcp.add_tool(wrapper)
+                    _registered_tools.append({
+                        "name": tool_name,
+                        "description": m_desc.get('description', '')
+                    })
                 except ValueError:
                     # Tool already exists, maybe skip or warn
                     pass
@@ -243,6 +250,30 @@ def main():
 
     logger.info("Tool registration complete.")
     mcp.run()
+
+# Register the list_tools utility
+@mcp.tool()
+def list_google_tools(prefix: str = None, include_descriptions: bool = False) -> str:
+    """
+    Lists available Google API tools registered on this server.
+
+    Args:
+        prefix: Optional prefix to filter tool names (case-insensitive).
+        include_descriptions: If True, includes tool descriptions in the output.
+    """
+    results = []
+    for tool in _registered_tools:
+        name = tool['name']
+        if prefix and not name.lower().startswith(prefix.lower()):
+            continue
+
+        if include_descriptions:
+            desc = tool['description'].split('\n')[0] # First line only
+            results.append(f"{name}: {desc}")
+        else:
+            results.append(name)
+
+    return "\n".join(results)
 
 if __name__ == "__main__":
     main()
